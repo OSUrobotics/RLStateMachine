@@ -51,6 +51,7 @@ from smach.util import\
 
 ### Containers
 from smach.state_machine import StateMachine
+from smach.state_machine_rl import StateMachineRL
 from smach.sequence import Sequence
 from smach.concurrence import Concurrence
 from smach.iterator import Iterator
