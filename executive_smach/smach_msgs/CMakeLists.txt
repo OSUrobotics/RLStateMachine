@@ -19,7 +19,11 @@ else()
   add_message_files(FILES
     SmachContainerInitialStatusCmd.msg
     SmachContainerStructure.msg
-    SmachContainerStatus.msg)
+    SmachContainerStatus.msg
+    StateActionUpdates.msg)
+
+  add_service_files(FILES
+    StateActionUpdatesService.srv)
 
   generate_messages(DEPENDENCIES std_msgs)
 

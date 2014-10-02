@@ -176,7 +176,7 @@ class ContainerProxy():
                     rospy.sleep(0.1)
             except:
                 pass
-
+#HERE!!
     def _publish_structure(self, info_str=''):
         path = self._path
         children = list(self._container.get_children().keys())

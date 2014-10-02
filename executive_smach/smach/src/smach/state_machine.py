@@ -4,7 +4,9 @@ import traceback
 from contextlib import contextmanager
 
 import smach
-
+import random
+import q_learner
+import smach_rl_publishers
 __all__ = ['StateMachine']
 
 ### State Machine class
@@ -29,6 +31,7 @@ class StateMachine(smach.container.Container):
      - OUTCOME -> None (or unspecified)
      - OUTCOME -> SM_OUTCOME
     """
+    counter = 0
     def __init__(self, outcomes, input_keys=[], output_keys=[]):
         """Constructor for smach StateMachine Container.
 
@@ -70,6 +73,12 @@ class StateMachine(smach.container.Container):
         # Thread for execution of state switching
         self._execute_thread = None
         self.userdata = smach.UserData()
+        
+        self.num = StateMachine.counter
+        StateMachine.counter += 1
+
+        self.publisher = smach_rl_publishers.SmachRLPublishers()
+        #self.q_learner = q_learner.QLearner()
 
     ### Construction methods
     @staticmethod
@@ -91,6 +100,10 @@ class StateMachine(smach.container.Container):
         self = StateMachine._currently_opened_container()
 
         smach.logdebug('Adding state (%s, %s, %s)' % (label, str(state), str(transitions)))
+
+        #If the state being added is an RL state.
+        if type(state) == smach.StateMachineRL:
+            state.add_learner(label, self)
 
         # Set initial state if it is still unset
         if self._initial_state_label is None:
@@ -187,8 +200,11 @@ class StateMachine(smach.container.Container):
 
     ### Internals
     def _set_current_state(self, state_label):
+        if type(state_label) == list():
+            state_label = state_label[0]
         if state_label is not None:
             # Store the current label and states 
+            smach.loginfo(state_label)
             self._current_label = state_label
             self._current_state = self._states[state_label]
             self._current_transitions = self._transitions[state_label]
@@ -274,19 +290,26 @@ class StateMachine(smach.container.Container):
         transition_target = self._current_transitions[outcome]
 
         # Check if the transition target is a state in this state machine, or an outcome of this state machine
-        if transition_target in self._states:
-            # Set the new state 
+        
+        if (isinstance(transition_target, list) and set(transition_target).intersection(self._states)) or (isinstance(transition_target, str) and transition_target in self._states):
+            # Set the new state
             self._set_current_state(transition_target)
 
             # Spew some info
             smach.loginfo("State machine transitioning '%s':'%s'-->'%s'" %
                           (last_state_label, outcome, transition_target))
 
+            if type(self._states[transition_target] == smach.StateMachineRL):
+                self._states[transition_target].state_label = transition_target
+            
+            if 'reward' in self.userdata:
+                reward = self.userdata['reward']
+                self.publisher.update_rl(last_state_label, -reward, last_state_label, self.num)
             # Call transition callbacks
             self.call_transition_cbs()
         else:
             # This is a terminal state
-            
+            self.publisher.update_rl('END', 0, 'END', self.num)
             if self._preempt_requested and self._preempted_state is not None:
                 if not self._current_state.preempt_requested():
                     self.service_preempt()
@@ -431,7 +454,11 @@ class StateMachine(smach.container.Container):
         int_edges = []
         for (from_label,transitions) in ((k,self._transitions[k]) for k in self._transitions):
             for (outcome,to_label) in ((k,transitions[k]) for k in transitions):
-                int_edges.append((outcome, from_label, to_label))
+                if isinstance(to_label, list):
+                    for v in to_label:
+                        int_edges.append((outcome, from_label, v))
+                else:
+                    int_edges.append((outcome, from_label, to_label))
         return int_edges
 
     ### Validation methods
@@ -477,7 +504,10 @@ class StateMachine(smach.container.Container):
         for label,state,transitions in state_specs:
             # Check that all potential outcomes are registered in this state
             transition_states = set([s for s in transitions.values()
-                                     if s is not None and s != ''])
+                                     if s is not None and ((isinstance(s, str) and s != '') or (isinstance(s, list) and not s))])
+            #transition_states = set([s for s in transitions.values()
+            #                         if s is not None and s != ''])
+
             # Generate a list of missing states
             missing_states = transition_states.difference(available_states)
 
@@ -507,3 +537,17 @@ class StateMachine(smach.container.Container):
     def is_running(self):
         """Returns true if the state machine is running."""
         return self._is_running
+
+
+    def reset(self):
+        rl_states = list()
+        self.recurse_reset(rl_states,self._states)
+        for (l,s) in rl_states:
+            s.userdata = smach.UserData()
+        self.userdata = smach.UserData()
+
+    def recurse_reset(self, rl_states, states):
+        for (label,s) in states.iteritems():
+            if type(s) == smach.StateMachineRL:
+                rl_states.append((label,s))
+                self.recurse_reset(rl_states, s._states)
