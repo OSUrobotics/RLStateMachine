@@ -219,7 +219,7 @@ class StateMachineRL(smach.container.Container):
 		this flag has been set, it will prevent more states from being added to
 		the state machine. 
 		"""
-		smach.loginfo(learner.QTable)
+		smach.loginfo(learner.q_table)
 		# Initialize preempt state
 		self._preempted_label = None
 		self._preempted_state = None
@@ -239,7 +239,7 @@ class StateMachineRL(smach.container.Container):
 		self._states[label_transition].state_label = label_transition
 		#If the next-state is an RL-State, there is no reward until that state is executed. Add the current state to be updated
 		#by the next-states reward.
-		if next_label in learner.QTable.keys():
+		if next_label in learner.q_table.keys():
 			learner.queue_state_update(current_label, label_transition)
 
 		#smach.loginfo(self._states['START_NAV'].state_label)
