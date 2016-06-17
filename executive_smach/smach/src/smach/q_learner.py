@@ -9,7 +9,6 @@ import numpy as np
 from scipy import stats
 from smach_msgs.srv import StateActionUpdatesService
 
-
 class QLearner():
 	def __init__(self):
 		self.once = False

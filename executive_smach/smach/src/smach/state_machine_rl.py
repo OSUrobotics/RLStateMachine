@@ -34,7 +34,7 @@ class StateMachineRL(smach.container.Container):
 	 - OUTCOME -> None (or unspecified)
 	 - OUTCOME -> SM_OUTCOME
 	"""
-	
+	counter = 100
 	def __init__(self,
 			outcomes,
 			default_outcome,
@@ -126,6 +126,7 @@ class StateMachineRL(smach.container.Container):
 		self._states = {}
 		self._threads = {}
 		self._remappings = {}
+		self.container = None
 
 		if not (default_outcome or outcome_map or outcome_cb):
 			raise smach.InvalidStateError("Concurrence requires an outcome policy")
@@ -174,6 +175,8 @@ class StateMachineRL(smach.container.Container):
 		self.multi_used_sm = False
 		self.publisher = smach_rl_publishers.SmachRLPublishers()
 		self.initial_state = None
+		self.num = StateMachineRL.counter
+		StateMachineRL.counter += 1
 	### Construction methods
 	@staticmethod
 	def add(label, state, transitions = None, remapping={}):
@@ -183,6 +186,7 @@ class StateMachineRL(smach.container.Container):
 		# Get currently opened container
 		self = StateMachineRL._currently_opened_container()
 
+		self.container = self
 		# Store state
 		self._states[label] = state
 		self._remappings[label] = remapping
@@ -219,7 +223,8 @@ class StateMachineRL(smach.container.Container):
 		this flag has been set, it will prevent more states from being added to
 		the state machine. 
 		"""
-		smach.loginfo(learner.q_table)
+		#smach.loginfo(learner.q_table)
+		smach.loginfo(learner.q_table_additive_states)
 		# Initialize preempt state
 		self._preempted_label = None
 		self._preempted_state = None
